@@ -10,10 +10,18 @@ Feito para prospecção B2B e análises locais (quantos restaurantes, salões ou
 
 ## O problema
 
-- A base completa tem ~60 milhões de estabelecimentos em 21 arquivos `.zip`; descompactada passa de 20 GB.
+- A base completa tem **73,8 milhões de linhas** de estabelecimentos (out/2026) em 21 arquivos `.zip`.
 - Carregar isso em pandas não cabe em 8 GB de RAM.
 - Quase tudo é descartável para um uso local: empresas baixadas, de outros municípios ou sem nenhum contato.
 - O download pela pasta pública da Receita cai com frequência.
+
+## Resultado real (Salvador, out/2026)
+
+| Etapa | Números |
+|---|---|
+| Linhas lidas (Estabelecimentos) | 73.809.386 |
+| Estabelecimentos ativos com contato guardados | **329.729** (0,45%) |
+| Tempo da etapa de estabelecimentos | ~14 min, lendo de HD externo USB 2.0 |
 
 ## Como funciona
 
@@ -21,7 +29,7 @@ Feito para prospecção B2B e análises locais (quantos restaurantes, salões ou
 flowchart LR
     A[Pasta pública da Receita<br/>WebDAV, ~7 GB/mês] -->|baixar: HTTP Range,<br/>retomada e 5 tentativas| B[(21 arquivos .zip)]
     B -->|leitura em fluxo,<br/>sem descompactar| C{Pré-filtro em bytes<br/>UF + código do município}
-    C -->|~1% das linhas| D[Transformação<br/>ativos com telefone/e-mail]
+    C -->|0,45% das linhas<br/>em Salvador| D[Transformação<br/>ativos com telefone/e-mail]
     D --> E[(cnpj.db<br/>SQLite)]
     B -->|Empresas*.zip| F[Razão social, natureza,<br/>MEI e remoção do CPF]
     F --> E
@@ -32,8 +40,8 @@ flowchart LR
 
 | Decisão | Por quê |
 |---|---|
-| Ler o CSV de dentro do `.zip` em fluxo (`zipfile` + iteração por linha) | Memória constante (~50 MB) para 7 GB de entrada |
-| Pré-filtro em **bytes** (`"BA";"3849";` na linha crua) antes de decodificar o CSV | Descarta ~99% das linhas sem custo de parsing; é o que torna viável num i5-4210U |
+| Ler o CSV de dentro do `.zip` em fluxo (`zipfile` + iteração por linha) | Memória constante, independente do tamanho da entrada |
+| Pré-filtro em **bytes** (`"BA";"3849";` na linha crua) antes de decodificar o CSV | Descarta 99,5% das linhas sem custo de parsing; é o que torna viável num i5-4210U |
 | Duas passagens: Estabelecimentos → Empresas | A segunda só atualiza os CNPJs básicos já guardados (conjunto em memória) |
 | Gravar em `cnpj.novo` e trocar com `os.replace` no fim | Uma consulta nunca vê um banco pela metade; se o processo cair, o banco anterior continua válido |
 | Inserção em lote por arquivo + `commit` | Um `executemany` por arquivo em vez de milhões de transações |
